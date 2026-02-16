@@ -17,6 +17,7 @@ end
 
 -- ===== Rig blip cache =====
 local RigBlipCache = {} -- rigKey -> { x=, y=, z=, ownerCid=nil|string }
+local ensureStash -- forward declaration: used by seeding before function body is assigned
 
 local function loadRigBlipCache()
   RigBlipCache = {}
@@ -91,6 +92,19 @@ local function ensureColumn(tableName, columnName, alterSql)
   return true
 end
 
+local function normalizeRigSeedData(rig, index, defaultDeposit)
+  local coords = rig and rig.coords
+  if not (coords and coords.x and coords.y and coords.z) then
+    return nil
+  end
+
+  local rigKey = tostring((rig and rig.id) or ('rig_' .. string.format('%03d', index)))
+  local deposit = tonumber(rig and rig.deposit) or defaultDeposit
+  if deposit < 0 then deposit = 0 end
+
+  return rigKey, coords, deposit
+end
+
 
 -- ===== Rig seeding (Config.Rigs -> oilrig_rigs) =====
 local function seedRigsFromConfig()
@@ -104,11 +118,8 @@ local function seedRigsFromConfig()
 
   local inserted = 0
   for i, r in ipairs(Config.Rigs) do
-    local coords = r.coords
-    local id = tostring(r.id or ('rig_' .. string.format('%03d', i)))
-    if coords and coords.x and coords.y and coords.z then
-      local dep = tonumber(r.deposit) or defDeposit
-      if dep < 0 then dep = 0 end
+    local id, coords, dep = normalizeRigSeedData(r, i, defDeposit)
+    if id then
       -- upsert by rig_key (stable)
       MySQL.update.await([[
         INSERT INTO oilrig_rigs (rig_key, x, y, z, deposit_total, deposit_remaining, deposit_initialized)
@@ -118,7 +129,7 @@ local function seedRigsFromConfig()
           y = VALUES(y),
           z = VALUES(z)
       ]], { id, coords.x, coords.y, coords.z, dep, dep })
-inserted += 1
+      inserted = inserted + 1
       -- stash ensure
       pcall(function() ensureStash(id) end)
     end
@@ -853,7 +864,7 @@ local function stashIdFromRigKey(rigKey)
   return ('oilrig_%s'):format(safe)
 end
 
-local function ensureStash(rigKey)
+ensureStash = function(rigKey)
   local stashId = stashIdFromRigKey(rigKey)
   if not ox_inventory:GetInventory(stashId, false) then
     ox_inventory:RegisterStash(stashId, Config.StashLabel or 'Oil Rig Stash', Config.StashSlots or 40, Config.StashMaxWeight or 200000, false)
