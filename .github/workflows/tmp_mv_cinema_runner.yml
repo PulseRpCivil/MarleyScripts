@@ -1,32 +1,36 @@
-name: Temporary mv_cinema runner
+name: Temporary mv_cinema builder
 on:
   pull_request:
     branches: [main]
 
 jobs:
-  inspect:
+  build:
     runs-on: ubuntu-latest
     steps:
-      - name: Test Drive download endpoints
+      - uses: actions/checkout@v4
+      - name: Validate resource
         shell: bash
         run: |
-          set -u
-          ID='1tseWbF5TDsQac1MCMs52lGcK4x0uS59S'
-          urls=(
-            "https://drive.usercontent.google.com/download?id=$ID&export=download&confirm=t"
-            "https://drive.google.com/uc?export=download&id=$ID"
-            "https://drive.google.com/uc?id=$ID&export=download"
-            "https://drive.google.com/file/d/$ID/view?usp=drivesdk"
-          )
-          i=0
-          for url in "${urls[@]}"; do
-            i=$((i+1))
-            echo "=== URL $i ==="
-            curl -L -sS -D "headers_$i.txt" -A 'Mozilla/5.0' -o "body_$i.bin" "$url" || true
-            cat "headers_$i.txt" || true
-            ls -lh "body_$i.bin" || true
-            file "body_$i.bin" || true
-            head -c 1000 "body_$i.bin" | strings || true
-            echo
-            grep -Eo 'https?[^"<> ]+' "body_$i.bin" | head -20 || true
-          done
+          set -euxo pipefail
+          test -f mv_cinema/fxmanifest.lua
+          test -f mv_cinema/client/main.lua
+          test -f mv_cinema/server/main.lua
+          test -f mv_cinema/html/control/app.js
+          test -f mv_cinema/html/player/player.js
+          node --check mv_cinema/html/control/app.js
+          node --check mv_cinema/html/player/player.js
+          grep -Rni "RegisterCommand" mv_cinema && exit 1 || true
+          grep -Rni "ox_lib" mv_cinema && exit 1 || true
+      - name: Create ZIP
+        shell: bash
+        run: |
+          set -euxo pipefail
+          mkdir -p dist
+          zip -r -9 dist/mv_cinema_v1.5.8_audio_fix.zip mv_cinema -x '*/.DS_Store' '*.git*'
+          unzip -t dist/mv_cinema_v1.5.8_audio_fix.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mv_cinema_v1.5.8_audio_fix
+          path: dist/mv_cinema_v1.5.8_audio_fix.zip
+          if-no-files-found: error
+          retention-days: 1
