@@ -7,26 +7,26 @@ jobs:
   inspect:
     runs-on: ubuntu-latest
     steps:
-      - name: Download uploaded archive
+      - name: Test Drive download endpoints
         shell: bash
         run: |
-          set -euxo pipefail
-          curl -L --fail --retry 3 -A 'Mozilla/5.0' -o source.zip 'https://drive.usercontent.google.com/download?id=1tseWbF5TDsQac1MCMs52lGcK4x0uS59S&export=download&confirm=t'
-          ls -lh source.zip
-          file source.zip
-          unzip -t source.zip
-      - name: Inspect cinema source
-        shell: bash
-        run: |
-          set -euxo pipefail
-          rm -rf work && mkdir work
-          unzip -q source.zip -d work
-          find work -maxdepth 6 -type f -print
-          echo '=== AUDIO AND PLAYER REFERENCES ==='
-          grep -RniE 'YT\.Player|YouTube|volume|mute|unMute|setVolume|CreateDui|SendDuiMessage|insideMlo|insideMLO|interior|audio' work --include='*.lua' --include='*.js' --include='*.html' || true
-          echo '=== APP JS ==='
-          APP=$(find work -path '*/mv_cinema/html/control/app.js' | head -n1)
-          [ -n "$APP" ] && cat "$APP" || true
-          echo '=== CLIENT MAIN ==='
-          CLIENT=$(find work -path '*/mv_cinema/client/main.lua' | head -n1)
-          [ -n "$CLIENT" ] && cat "$CLIENT" || true
+          set -u
+          ID='1tseWbF5TDsQac1MCMs52lGcK4x0uS59S'
+          urls=(
+            "https://drive.usercontent.google.com/download?id=$ID&export=download&confirm=t"
+            "https://drive.google.com/uc?export=download&id=$ID"
+            "https://drive.google.com/uc?id=$ID&export=download"
+            "https://drive.google.com/file/d/$ID/view?usp=drivesdk"
+          )
+          i=0
+          for url in "${urls[@]}"; do
+            i=$((i+1))
+            echo "=== URL $i ==="
+            curl -L -sS -D "headers_$i.txt" -A 'Mozilla/5.0' -o "body_$i.bin" "$url" || true
+            cat "headers_$i.txt" || true
+            ls -lh "body_$i.bin" || true
+            file "body_$i.bin" || true
+            head -c 1000 "body_$i.bin" | strings || true
+            echo
+            grep -Eo 'https?[^"<> ]+' "body_$i.bin" | head -20 || true
+          done
