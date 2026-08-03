@@ -4,33 +4,30 @@ on:
     branches: [main]
 
 jobs:
-  build:
+  inspect:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Validate resource
+      - name: Unpack uploaded resource
         shell: bash
         run: |
           set -euxo pipefail
-          test -f mv_cinema/fxmanifest.lua
-          test -f mv_cinema/client/main.lua
-          test -f mv_cinema/server/main.lua
-          test -f mv_cinema/html/control/app.js
-          test -f mv_cinema/html/player/player.js
-          node --check mv_cinema/html/control/app.js
-          node --check mv_cinema/html/player/player.js
-          grep -Rni "RegisterCommand" mv_cinema && exit 1 || true
-          grep -Rni "ox_lib" mv_cinema && exit 1 || true
-      - name: Create ZIP
+          unzip -t source.zip
+          rm -rf unpacked
+          mkdir unpacked
+          unzip -q source.zip -d unpacked
+          find unpacked -maxdepth 6 -type f -print
+      - name: Inspect player and audio code
         shell: bash
         run: |
           set -euxo pipefail
-          mkdir -p dist
-          zip -r -9 dist/mv_cinema_v1.5.8_audio_fix.zip mv_cinema -x '*/.DS_Store' '*.git*'
-          unzip -t dist/mv_cinema_v1.5.8_audio_fix.zip
-      - uses: actions/upload-artifact@v4
-        with:
-          name: mv_cinema_v1.5.8_audio_fix
-          path: dist/mv_cinema_v1.5.8_audio_fix.zip
-          if-no-files-found: error
-          retention-days: 1
+          ROOT='unpacked/mv_cinema'
+          test -d "$ROOT"
+          echo '=== FXMANIFEST ==='
+          cat "$ROOT/fxmanifest.lua"
+          echo '=== AUDIO REFERENCES ==='
+          grep -RniE 'audio|volume|mute|unMute|setVolume|YT\.Player|youtube|Dui|SendDuiMessage|interior|insideMlo|insideMLO' "$ROOT" --include='*.lua' --include='*.js' --include='*.html' || true
+          echo '=== CONTROL APP.JS ==='
+          cat "$ROOT/html/control/app.js"
+          echo '=== CLIENT MAIN.LUA ==='
+          cat "$ROOT/client/main.lua"
