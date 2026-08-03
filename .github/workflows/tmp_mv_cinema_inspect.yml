@@ -1,0 +1,33 @@
+name: Temporary mv_cinema inspect
+on:
+  push:
+    branches: [tmp-mv-cinema-audio-fix-20260803]
+  workflow_dispatch:
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download source archive
+        shell: bash
+        run: |
+          set -euxo pipefail
+          curl -L --fail --retry 2 -o source.zip 'https://drive.usercontent.google.com/download?id=1tseWbF5TDsQac1MCMs52lGcK4x0uS59S&export=download&confirm=t'
+          ls -lh source.zip
+          file source.zip
+          unzip -t source.zip
+      - name: Inspect relevant files
+        shell: bash
+        run: |
+          set -euxo pipefail
+          rm -rf work && mkdir work
+          unzip -q source.zip -d work
+          find work -maxdepth 5 -type f -print
+          echo '=== CREATE DUI / AUDIO REFERENCES ==='
+          grep -RniE 'CreateDui|SendDuiMessage|volume|mute|unMute|setVolume|insideMlo|insideMLO|interior|audio' work --include='*.lua' --include='*.js' --include='*.html' || true
+          echo '=== CLIENT MAIN BEGIN ==='
+          CLIENT=$(find work -path '*/mv_cinema/client/main.lua' | head -n1)
+          [ -n "$CLIENT" ] && sed -n '1,2600p' "$CLIENT" || true
+          echo '=== APP JS BEGIN ==='
+          APP=$(find work -path '*/mv_cinema/html/control/app.js' | head -n1)
+          [ -n "$APP" ] && sed -n '1,2600p' "$APP" || true
