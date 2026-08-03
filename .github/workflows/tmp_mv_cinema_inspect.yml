@@ -1,7 +1,7 @@
 name: Temporary mv_cinema inspect
 on:
-  push:
-    branches: [tmp-mv-cinema-audio-fix-20260803]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 jobs:
